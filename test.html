@@ -1,374 +1,460 @@
-<!DOCTYPE html>
+<!--
+Snake - Juego en un solo archivo HTML + CSS + JavaScript
+Instrucciones: guarda este archivo como `snake.html` y ábrelo en tu navegador.
+Comentarios en el código en inglés (por preferencia del usuario).
+Controls: Arrow keys or WASD. On mobile use the on-screen buttons.
+-->
+
+<!doctype html>
 <html lang="es">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Flappy Exo — Juego en JS</title>
-    <style>
-      :root {
-        --bg: #0b1220;
-        --fg: #e6f1ff;
-        --accent: #ffb86b;
-      }
-      html,
-      body {
-        height: 100%;
-        margin: 0;
-        font-family: Inter, system-ui, Segoe UI, Roboto, "Helvetica Neue", Arial;
-      }
-      body {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: linear-gradient(180deg, #071025 0%, #0b1220 100%);
-        color: var(--fg);
-      }
-      .game-wrap {
-        width: 100%;
-        max-width: 720px;
-        padding: 18px;
-        box-sizing: border-box;
-      }
-      header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 12px;
-      }
-      h1 {
-        margin: 0;
-        font-size: 18px;
-      }
-      #canvas {
-        display: block;
-        width: 100%;
-        background: linear-gradient(180deg, #083 0%, #012 60%);
-        border-radius: 12px;
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
-      }
-      .hud {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-      }
-      button {
-        background: var(--accent);
-        border: none;
-        padding: 8px 12px;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-      }
-      .info {
-        font-size: 13px;
-        opacity: 0.9;
-      }
-      .center {
-        display: flex;
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Snake — Juego</title>
+  <style>
+    :root {
+      --bg: #0f1724;
+      --panel: #0b1220;
+      --accent: #10b981;
+      --danger: #ef4444;
+      --muted: #94a3b8
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial
+    }
+
+    body {
+      background: linear-gradient(180deg, #071029 0%, #071a2b 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      color: #e6eef8
+    }
+
+    .wrap {
+      width: 100%;
+      max-width: 900px;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 10px 30px rgba(2, 6, 23, 0.6)
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px
+    }
+
+    h1 {
+      font-size: 20px;
+      margin: 0
+    }
+
+    .meta {
+      display: flex;
+      gap: 12px;
+      align-items: center
+    }
+
+    .badge {
+      background: rgba(255, 255, 255, 0.03);
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--muted)
+    }
+
+    .game-area {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start
+    }
+
+    canvas {
+      background: linear-gradient(180deg, #04202f, #052b39);
+      border-radius: 8px;
+      display: block
+    }
+
+    .panel {
+      width: 260px;
+      min-height: 360px;
+      padding: 12px;
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02)
+    }
+
+    .score {
+      font-size: 28px;
+      margin: 6px 0
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px
+    }
+
+    button {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 8px 10px;
+      border-radius: 8px;
+      color: inherit;
+      cursor: pointer
+    }
+
+    .small {
+      font-size: 13px;
+      padding: 6px 8px
+    }
+
+    .footer {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 13px
+    }
+
+    .touch {
+      display: none;
+      margin-top: 12px
+    }
+
+    .touch .row {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin: 6px
+    }
+
+    .touch button {
+      width: 56px;
+      height: 56px
+    }
+
+    @media (max-width:820px) {
+      .game-area {
         flex-direction: column;
-        align-items: center;
-        gap: 8px;
-        margin-top: 12px;
+        align-items: center
       }
-      .small {
-        font-size: 12px;
-        color: #cbd5e1;
-      }
-      footer {
-        margin-top: 8px;
-        font-size: 12px;
-        color: #98a2b3;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="game-wrap">
-      <header>
-        <h1>Flappy Exo — Juego en JavaScript</h1>
-        <div class="hud">
-          <div class="info">Puntuación: <span id="score">0</span></div>
-          <button id="restart">Reiniciar</button>
-        </div>
-      </header>
 
-      <canvas id="canvas" width="720" height="480"></canvas>
+      .panel {
+        width: 100%
+      }
 
-      <div class="center">
-        <div class="small">
-          Usa clic o barra espaciadora para saltar. Mantén el ritmo — ritmo es
-          vida 😎
-        </div>
-        <div class="small">
-          Hecho con JavaScript puro. Pídeme mejoras: niveles, skins, PWA, o
-          integración con backend.
-        </div>
+      .touch {
+        display: block
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Snake — JS (guardar como <code>snake.html</code>)</h1>
+      <div class="meta">
+        <div class="badge">Controles: ⬆️⬇️⬅️➡️ / WASD</div>
+        <div class="badge">Toque / Mobile incluido</div>
       </div>
-      <footer>
-        Desarrollador: Exo · Código limpio y comentado (comments in English)
-      </footer>
+    </header>
+
+    <div class="game-area">
+      <canvas id="c" width="600" height="600"></canvas>
+
+      <aside class="panel">
+        <div>
+          <div style="color:var(--muted);font-size:13px">Puntuación</div>
+          <div class="score" id="score">0</div>
+          <div style="color:var(--muted);font-size:13px;margin-top:8px">Velocidad</div>
+          <div id="speed">Normal</div>
+
+          <div class="controls">
+            <button id="start" class="small">Empezar</button>
+            <button id="pause" class="small">Pausar</button>
+            <button id="reset" class="small">Reiniciar</button>
+          </div>
+
+          <div style="margin-top:12px">
+            <label style="font-size:13px;color:var(--muted)">Grid size</label>
+            <select id="grid"
+              style="width:100%;margin-top:6px;padding:8px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.04)">
+              <option value="16">16</option>
+              <option value="20" selected>20</option>
+              <option value="24">24</option>
+              <option value="30">30</option>
+            </select>
+          </div>
+
+          <div style="margin-top:12px">
+            <label style="font-size:13px;color:var(--muted)">Velocidad</label>
+            <input id="speedRange" type="range" min="4" max="16" value="8" style="width:100%;margin-top:6px" />
+          </div>
+
+          <div class="footer">
+            <div>Desarrollado con JS puro — toca los botones cuando estés en móvil.</div>
+            <div style="margin-top:6px;color:var(--muted);font-size:12px">Presiona R para reiniciar rápido. Made with ⚡
+            </div>
+          </div>
+        </div>
+
+        <div class="touch" id="touchControls">
+          <div class="row"><button data-dir="U">⬆️</button></div>
+          <div class="row"><button data-dir="L">⬅️</button><button data-dir="D">⬇️</button><button
+              data-dir="R">➡️</button></div>
+        </div>
+      </aside>
     </div>
+  </div>
 
-    <script>
-      /*
-  Simple Flappy-style game.
-  Controls: click or space to flap.
-  Single file: Canvas + JS.
-*/
+  <script>
+    // CONFIG & HELPERS
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d', { alpha: false });
+    const scoreEl = document.getElementById('score');
+    const startBtn = document.getElementById('start');
+    const pauseBtn = document.getElementById('pause');
+    const resetBtn = document.getElementById('reset');
+    const gridSelect = document.getElementById('grid');
+    const speedRange = document.getElementById('speedRange');
+    const speedLabel = document.getElementById('speed');
 
-      const canvas = document.getElementById("canvas");
-      const ctx = canvas.getContext("2d");
-      const scoreEl = document.getElementById("score");
-      const restartBtn = document.getElementById("restart");
+    // Game state
+    let tileCount = parseInt(gridSelect.value, 10); // grid size
+    let tileSize = canvas.width / tileCount;
+    let snake = [{ x: Math.floor(tileCount / 2), y: Math.floor(tileCount / 2) }];
+    let dir = { x: 0, y: 0 };
+    let apple = null;
+    let lastMove = 0;
+    let moveInterval = Math.max(4, 20 - parseInt(speedRange.value, 10));
+    let running = false;
+    let score = 0;
+    let gameOver = false;
 
-      let W = canvas.width;
-      let H = canvas.height;
+    // Keep a set of directions to prevent reverse direction instantly
+    function setDirection(d) {
+      if (!d) return;
+      // Prevent reversing
+      if (snake.length > 1) {
+        const nextX = snake[0].x + d.x;
+        const nextY = snake[0].y + d.y;
+        if (nextX === snake[1].x && nextY === snake[1].y) return;
+      }
+      dir = d;
+    }
 
-      // Load bird image
-      const birdImg = new Image();
-      birdImg.src = "assets/img/prota.png";
+    function placeApple() {
+      const occupied = new Set(snake.map(s => s.x + ',' + s.y));
+      let tries = 0;
+      while (tries < 1000) {
+        const ax = Math.floor(Math.random() * tileCount);
+        const ay = Math.floor(Math.random() * tileCount);
+        if (!occupied.has(ax + ',' + ay)) {
+          apple = { x: ax, y: ay };
+          return;
+        }
+        tries++;
+      }
+      // fallback: if board full
+      apple = null;
+    }
 
-      // Game state
-      let gameState = "ready"; // 'ready' | 'running' | 'over'
-      let score = 0;
+    function resetGame() {
+      tileCount = parseInt(gridSelect.value, 10);
+      tileSize = canvas.width / tileCount;
+      snake = [{ x: Math.floor(tileCount / 2), y: Math.floor(tileCount / 2) }];
+      dir = { x: 0, y: 0 };
+      placeApple();
+      score = 0;
+      scoreEl.textContent = score;
+      gameOver = false;
+      running = false;
+    }
 
-      // Bird
-      const bird = {
-        x: 140,
-        y: H / 2,
-        radius: 16,
-        vel: 0,
-        gravity: 0.6,
-        jump: -10,
-        rotation: 0,
-      };
+    // Input handling
+    window.addEventListener('keydown', e => {
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') setDirection({ x: 0, y: -1 });
+      if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') setDirection({ x: 0, y: 1 });
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') setDirection({ x: -1, y: 0 });
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') setDirection({ x: 1, y: 0 });
+      if (e.key === 'p' || e.key === 'P') togglePause();
+      if (e.key === 'r' || e.key === 'R') { resetGame(); }
+    });
 
-      // Pipes
-      const pipeWidth = 64;
-      const gapSize = 140; // gap between top and bottom
-      let pipes = [];
-      let pipeTimer = 0;
-      const pipeInterval = 90; // frames
-      const speed = 2.6;
+    document.getElementById('touchControls').addEventListener('click', e => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const d = btn.dataset.dir;
+      if (d === 'U') setDirection({ x: 0, y: -1 });
+      if (d === 'D') setDirection({ x: 0, y: 1 });
+      if (d === 'L') setDirection({ x: -1, y: 0 });
+      if (d === 'R') setDirection({ x: 1, y: 0 });
+    });
 
-      // Particles for hit effect
-      let particles = [];
+    startBtn.addEventListener('click', () => { running = true; gameOver = false; });
+    pauseBtn.addEventListener('click', togglePause);
+    resetBtn.addEventListener('click', resetGame);
+    gridSelect.addEventListener('change', resetGame);
+    speedRange.addEventListener('input', () => {
+      moveInterval = Math.max(2, 20 - parseInt(speedRange.value, 10));
+      const v = parseInt(speedRange.value, 10);
+      if (v < 7) speedLabel.textContent = 'Lento';
+      else if (v < 11) speedLabel.textContent = 'Normal';
+      else speedLabel.textContent = 'Rápido';
+    });
 
-      function reset() {
-        score = 0;
+    function togglePause() { running = !running; }
+
+    // Game loop using requestAnimationFrame + tick logic
+    function update(time) {
+      if (!lastMove) lastMove = time;
+      const elapsed = time - lastMove;
+      if (running && elapsed >= moveInterval * 8) {
+        // move snake
+        lastMove = time;
+        step();
+      }
+      draw();
+      requestAnimationFrame(update);
+    }
+
+    function step() {
+      if (gameOver) return;
+      if (dir.x === 0 && dir.y === 0) return; // not moving yet
+
+      const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+
+      // wrap-around behavior (optional). To disable and use death on wall, comment wrap and uncomment wall check.
+      head.x = (head.x + tileCount) % tileCount;
+      head.y = (head.y + tileCount) % tileCount;
+
+      // wall collision (if you prefer death on wall):
+      // if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) { endGame(); return; }
+
+      // self-collision
+      for (let i = 0; i < snake.length; i++) {
+        if (snake[i].x === head.x && snake[i].y === head.y) { endGame(); return; }
+      }
+
+      snake.unshift(head);
+
+      // eat apple
+      if (apple && head.x === apple.x && head.y === apple.y) {
+        score += 1;
         scoreEl.textContent = score;
-        bird.y = H / 2;
-        bird.vel = 0;
-        bird.rotation = 0;
-        pipes = [];
-        pipeTimer = 0;
-        particles = [];
-        gameState = "ready";
+        placeApple();
+      } else {
+        snake.pop();
+      }
+    }
+
+    function endGame() {
+      gameOver = true;
+      running = false;
+      // flash effect
+      flashBoard();
+    }
+
+    function flashBoard() {
+      const prev = ctx.fillStyle;
+      ctx.fillStyle = '#ffefef';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      setTimeout(() => { ctx.fillStyle = prev; }, 120);
+    }
+
+    function drawGrid() {
+      ctx.globalAlpha = 0.06;
+      for (let i = 0; i <= tileCount; i++) {
+        ctx.fillRect(i * tileSize - 0.6, 0, 1, canvas.height);
+        ctx.fillRect(0, i * tileSize - 0.6, canvas.width, 1);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function draw() {
+      // background
+      ctx.fillStyle = '#062a35';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      drawGrid();
+
+      // draw apple
+      if (apple) {
+        drawCell(apple.x, apple.y, '#ef4444');
+        // small shine
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.fillRect(apple.x * tileSize + tileSize * 0.55, apple.y * tileSize + tileSize * 0.18, tileSize * 0.2, tileSize * 0.12);
       }
 
-      function spawnPipe() {
-        const minTop = 40;
-        const maxTop = H - gapSize - 40;
-        const topHeight =
-          Math.floor(Math.random() * (maxTop - minTop + 1)) + minTop;
-        pipes.push({ x: W + 20, top: topHeight, passed: false });
-      }
-
-      function flap() {
-        if (gameState === "over") return;
-        bird.vel = bird.jump;
-        gameState = "running";
-      }
-
-      function update() {
-        // physics
-        bird.vel += bird.gravity;
-        bird.y += bird.vel;
-        bird.rotation =
-          (Math.max(Math.min(bird.vel * 4, 40), -30) * Math.PI) / 180;
-
-        if (gameState === "running") {
-          pipeTimer++;
-          if (pipeTimer >= pipeInterval) {
-            pipeTimer = 0;
-            spawnPipe();
-          }
-
-          // move pipes
-          for (let i = pipes.length - 1; i >= 0; i--) {
-            pipes[i].x -= speed;
-            // score
-            if (
-              !pipes[i].passed &&
-              pipes[i].x + pipeWidth < bird.x - bird.radius
-            ) {
-              pipes[i].passed = true;
-              score++;
-              scoreEl.textContent = score;
-            }
-            // remove off-screen
-            if (pipes[i].x + pipeWidth < -50) pipes.splice(i, 1);
-          }
-
-          // collision with ground/ceiling
-          if (bird.y + bird.radius > H || bird.y - bird.radius < 0) {
-            hit();
-          }
-
-          // collision with pipes
-          for (const p of pipes) {
-            const withinX =
-              bird.x + bird.radius > p.x &&
-              bird.x - bird.radius < p.x + pipeWidth;
-            if (withinX) {
-              // top pipe
-              if (
-                bird.y - bird.radius < p.top ||
-                bird.y + bird.radius > p.top + gapSize
-              ) {
-                hit();
-              }
-            }
-          }
-        }
-
-        // particles
-        for (let i = particles.length - 1; i >= 0; i--) {
-          const part = particles[i];
-          part.x += part.vx;
-          part.y += part.vy;
-          part.vy += 0.2;
-          part.life -= 1;
-          if (part.life <= 0) particles.splice(i, 1);
+      // draw snake
+      for (let i = 0; i < snake.length; i++) {
+        const s = snake[i];
+        // head different style
+        if (i === 0) {
+          drawCell(s.x, s.y, '#10b981');
+          // eye
+          const ex = s.x * tileSize + (dir.x === 1 ? tileSize * 0.6 : dir.x === -1 ? tileSize * 0.15 : tileSize * 0.45);
+          const ey = s.y * tileSize + (dir.y === 1 ? tileSize * 0.6 : dir.y === -1 ? tileSize * 0.15 : tileSize * 0.45);
+          ctx.fillStyle = '#042026';
+          ctx.fillRect(ex, ey, Math.max(2, tileSize * 0.12), Math.max(2, tileSize * 0.12));
+        } else {
+          // gradient depending on index
+          const t = 1 - (i / Math.max(1, snake.length));
+          const green = Math.floor(60 + 160 * t);
+          drawCell(s.x, s.y, `rgb(0,${green},80)`);
         }
       }
 
-      function hit() {
-        if (gameState === "over") return;
-        gameState = "over";
-        // spawn particles
-        for (let i = 0; i < 30; i++) {
-          particles.push({
-            x: bird.x,
-            y: bird.y,
-            vx: (Math.random() - 0.5) * 6,
-            vy: (Math.random() - 1.5) * 6,
-            life: 30 + Math.random() * 30,
-          });
-        }
+      if (gameOver) {
+        ctx.fillStyle = 'rgba(2,6,23,0.7)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 28px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText('Game Over — pulsa Reiniciar (R)', canvas.width / 2, canvas.height / 2 - 10);
+        ctx.font = '14px system-ui';
+        ctx.fillText('Puntuación: ' + score, canvas.width / 2, canvas.height / 2 + 18);
       }
+    }
 
-      function draw() {
-        // background
-        ctx.clearRect(0, 0, W, H);
-        // sky gradient
-        const g = ctx.createLinearGradient(0, 0, 0, H);
-        g.addColorStop(0, "#7ec0ff");
-        g.addColorStop(1, "#66a3ff");
-        ctx.fillStyle = g;
-        ctx.fillRect(0, 0, W, H);
+    function drawCell(x, y, color) {
+      ctx.fillStyle = color;
+      const pad = Math.max(1, tileSize * 0.06);
+      ctx.fillRect(x * tileSize + pad, y * tileSize + pad, tileSize - pad * 2, tileSize - pad * 2);
+    }
 
-        // ground
-        ctx.fillStyle = "#0e2436";
-        ctx.fillRect(0, H - 40, W, 40);
-        ctx.fillStyle = "#0c1b2a";
-        ctx.fillRect(0, H - 40, W, 6);
+    // initial setup
+    resetGame();
+    placeApple();
+    requestAnimationFrame(update);
 
-        // pipes
-        for (const p of pipes) {
-          ctx.fillStyle = "#116b4b";
-          // top
-          ctx.fillRect(p.x, 0, pipeWidth, p.top);
-          // bottom
-          ctx.fillRect(
-            p.x,
-            p.top + gapSize,
-            pipeWidth,
-            H - (p.top + gapSize) - 40
-          );
-          // pipe cap
-          ctx.fillStyle = "#0b5039";
-          ctx.fillRect(p.x - 2, p.top - 12, pipeWidth + 4, 12);
-          ctx.fillRect(p.x - 2, p.top + gapSize, pipeWidth + 4, 12);
-        }
+    // handle resize: keep canvas square but responsive
+    function fitCanvas() {
+      const parent = canvas.parentElement;
+      const max = Math.min(parent.clientWidth - 20, 640);
+      canvas.style.width = max + 'px';
+      canvas.style.height = max + 'px';
+      // recompute tile size
+      tileSize = canvas.width / tileCount;
+    }
+    window.addEventListener('resize', fitCanvas);
+    fitCanvas();
 
-        // bird image
-        if (birdImg.complete) {
-          ctx.save();
-          ctx.translate(bird.x, bird.y);
-          ctx.rotate(bird.rotation);
-          ctx.drawImage(
-            birdImg,
-            -bird.radius,
-            -bird.radius,
-            bird.radius * 2,
-            bird.radius * 2
-          );
-          ctx.restore();
-        }
+    // ensure apple exists on load
+    if (!apple) placeApple();
 
-        // particles
-        for (const p of particles) {
-          ctx.fillStyle = "rgba(255,100,80,0.9)";
-          ctx.fillRect(p.x, p.y, 3, 3);
-        }
+    // small UX: quick start on first tap
+    canvas.addEventListener('pointerdown', () => { if (!running && !gameOver) running = true; });
+  </script>
+</body>
 
-        // overlay text
-        if (gameState === "ready") {
-          ctx.fillStyle = "#fff";
-          ctx.font = "26px Inter, Arial";
-          ctx.textAlign = "center";
-          ctx.fillText(
-            "Click o presiona espacio para empezar",
-            W / 2,
-            H / 2 - 40
-          );
-        }
-        if (gameState === "over") {
-          ctx.fillStyle = "rgba(0,0,0,0.45)";
-          ctx.fillRect(W / 2 - 160, H / 2 - 80, 320, 140);
-          ctx.fillStyle = "#fff";
-          ctx.font = "30px Inter, Arial";
-          ctx.textAlign = "center";
-          ctx.fillText("Game Over", W / 2, H / 2 - 20);
-          ctx.font = "18px Inter, Arial";
-          ctx.fillText("Score: " + score, W / 2, H / 2 + 12);
-          ctx.fillText(
-            "Presiona Reiniciar para volver a intentar",
-            W / 2,
-            H / 2 + 44
-          );
-        }
-      }
-
-      function loop() {
-        update();
-        draw();
-        requestAnimationFrame(loop);
-      }
-
-      // input
-      window.addEventListener("keydown", (e) => {
-        if (e.code === "Space") {
-          e.preventDefault();
-          if (gameState === "over") return;
-          flap();
-        }
-        if (e.code === "KeyR" && gameState === "over") reset();
-      });
-      canvas.addEventListener("mousedown", () => flap());
-      restartBtn.addEventListener("click", () => reset());
-
-      // responsive canvas scaling
-      function resize() {
-        const ratio = Math.min(window.innerWidth - 40, 720);
-        canvas.style.width = ratio + "px";
-      }
-      window.addEventListener("resize", resize);
-      resize();
-
-      // start
-      reset();
-      loop();
-    </script>
-  </body>
 </html>
