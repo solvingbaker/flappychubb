@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Pac‑Man Clásico (Approx)</title>
+    <style>
+        :root {
+            --tile: 20px
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            background: #000;
+            color: #fff;
+            font-family: Inter, Arial
+        }
+
+        #wrap {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            padding: 12px
+        }
+
+        canvas {
+            background: #000;
+            border: 6px solid #111;
+            border-radius: 8px;
+            image-rendering: pixelated
+        }
+
+        .ui {
+            min-width: 200px
+        }
+
+        .ui button {
+            padding: 8px;
+            border-radius: 6px;
+            border: 0;
+            background: #222;
+            color: #fff;
+            cursor: pointer;
+            margin-right: 6px
+        }
+
+        .small {
+            color: #bbb;
+            font-size: 13px
+        }
+    </style>
+</head>
+
+<body>
+    <div id="wrap">
+        <canvas id="c"></canvas>
+        <div class="ui">
+            <h3>Pac‑Man Clásico</h3>
+            <div class="small">Controles: Flechas o WASD. P para pausar. R reinicia.</div>
+            <div style="margin-top:10px">Score: <span id="score">0</span></div>
+            <div>Vidas: <span id="lives">3</span></div>
+            <div>Nivel: <span id="level">1</span></div>
+            <div style="margin-top:10px">
+                <button id="start">Iniciar</button>
+                <button id="restart">Reiniciar</button>
+            </div>
+            <div style="margin-top:8px" class="small">Esta es una reconstrucción funcional del mapa clásico. Se aproxima
+                el laberinto y la IA.</div>
+        </div>
+    </div>
+    <script>
+        // Pac-Man clásico (implementación práctica y funcional en un solo archivo)
+        const TILE = 20;
+        const COLS = 28, ROWS = 31;
+        const canvas = document.getElementById('c');
+        canvas.width = COLS * TILE; canvas.height = ROWS * TILE;
+        const ctx = canvas.getContext('2d');
+
+        // UI
+        const scoreEl = document.getElementById('score');
+        const livesEl = document.getElementById('lives');
+        const levelEl = document.getElementById('level');
+        const startBtn = document.getElementById('start');
+        const restartBtn = document.getElementById('restart');
+
+        let score = 0, lives = 3, level = 1;
+        let paused = true;
+
+        // Map legend: '#' wall, '.' pellet, 'o' power, ' ' empty, 'G' ghost home gate
+        // This map is an approximation of the classic Pac-Man maze (28x31)
+        const MAP_STR = [
+            "############################", //0
+            "#............##............#", //1
+            "#.####.#####.##.#####.####.#", //2
+            "#o####.#####.##.#####.####o#", //3
+            "#.####.#####.##.#####.####.#", //4
+            "#..........................#", //5
+            "#.####.##.########.##.####.#", //6
+            "#.####.##.########.##.####.#", //7
+            "#......##....##....##......#", //8
+            "######.##### ## #####.######", //9
+            "     #.##### ## #####.#     ", //10 (tunnel openings with spaces to simulate classic center)
+            "     #.##          ##.#     ", //11
+            "     #.## ###--### ##.#     ", //12
+            "######.## #GGGGG# ##.######", //13 G = gate
+            "      .   #GGGGG#   .      ", //14
+            "######.## ######## ##.######", //15
+            "     #.##          ##.#     ", //16
+            "     #.## ######## ##.#     ", //17
+            "######.## ######## ##.######", //18
+            "#............##............#", //19
+            "#.####.#####.##.#####.####.#", //20
+            "#.####.#####.##.#####.####.#", //21
+            "#o..##................##..o#", //22
+            "###.##.##.########.##.##.###", //23
+            "#......##....##....##......#", //24
+            "#.##########.##.##########.#", //25
+            "#..........................#", //26
+            "############################", //27
+            "                            ", //28 padding rows to reach 31 rows
+            "                            ", //29
+            "                            "  //30
+        ];
+
+        // Normalize map into ROWS elements of length COLS
+        function buildMap() {
+            const map = [];
+            for (let r = 0; r < ROWS; r++) {
+                let row = (MAP_STR[r] || ' '.repeat(COLS));
+                row = row.padEnd(COLS, ' ');
+                map.push(row.split(''));
+            }
+            return map;
+        }
+        let map = buildMap();
+
+        // Convert static map to numeric grid for game (0 wall,1 pellet,2 empty,3 power,4 gate)
+        function initGrid() {
+            grid = [];
+            pellets = 0;
+            for (let r = 0; r < ROWS; r++) {
+                grid[r] = [];
+                for (let c = 0; c < COLS; c++) {
+                    const ch = map[r][c];
+                    if (ch === '#') grid[r][c] = 0;
+                    else if (ch === '.') { grid[r][c] = 1; pellets++; }
+                    else if (ch === 'o') { grid[r][c] = 3; pellets++; }
+                    else if (ch === 'G') grid[r][c] = 4;
+                    else grid[r][c] = 2;
+                }
+            }
+        }
+
+        // Entities
+        const DIR = { NONE: 0, UP: 1, RIGHT: 2, DOWN: 3, LEFT: 4 };
+        const dxy = { 1: [0, -1], 2: [1, 0], 3: [0, 1], 4: [-1, 0] };
+        function opposite(d) { return d === 1 ? 3 : d === 3 ? 1 : d === 2 ? 4 : d === 4 ? 2 : 0 }
+
+        class Pac {
+            constructor() { this.reset() }
+            reset() { this.x = 14; this.y = 23; this.dir = DIR.NONE; this.next = DIR.NONE; this.speed = 0.12; this.r = 8 }
+            atCenter() { return Math.abs(this.x - Math.round(this.x)) < 0.03 && Math.abs(this.y - Math.round(this.y)) < 0.03 }
+            update() {
+                if (this.atCenter()) {
+                    if (canMove(this.next, Math.round(this.x), Math.round(this.y))) this.dir = this.next;
+                    if (!canMove(this.dir, Math.round(this.x), Math.round(this.y))) this.dir = DIR.NONE;
+                }
+                if (this.dir !== DIR.NONE) { this.x += dxy[this.dir][0] * this.speed; this.y += dxy[this.dir][1] * this.speed; }
+                this.collect();
+                // tunnel wrap
+                if (this.x < 0) this.x = COLS - 1; if (this.x > COLS - 1) this.x = 0;
+            }
+            collect() {
+                const tx = Math.round(this.x), ty = Math.round(this.y);
+                if (!inBounds(tx, ty)) return;
+                if (grid[ty][tx] === 1) { grid[ty][tx] = 2; score += 10; pellets--; }
+                if (grid[ty][tx] === 3) { grid[ty][tx] = 2; score += 50; pellets--; powerOn(); }
+            }
+            draw() {
+                const cx = this.x * TILE + TILE / 2, cy = this.y * TILE + TILE / 2;
+                ctx.fillStyle = 'yellow';
+                ctx.beginPath();
+                // mouth direction
+                let ang = 0; if (this.dir === DIR.LEFT) ang = Math.PI; else if (this.dir === DIR.UP) ang = -Math.PI / 2; else if (this.dir === DIR.DOWN) ang = Math.PI / 2; else ang = 0;
+                const m = Math.abs(Math.sin(Date.now() / 120)) * 0.4;
+                ctx.moveTo(cx, cy);
+                ctx.arc(cx, cy, this.r, ang + m, ang - m);
+                ctx.closePath(); ctx.fill();
+            }
+        }
+
+        class Ghost {
+            constructor(x, y, color) { this.startX = x; this.startY = y; this.x = x; this.y = y; this.color = color; this.dir = DIR.LEFT; this.fright = false; this.speed = 0.08; this.r = 9 }
+            reset() { this.x = this.startX; this.y = this.startY; this.fright = false; this.dir = DIR.LEFT }
+            atCenter() { return Math.abs(this.x - Math.round(this.x)) < 0.03 && Math.abs(this.y - Math.round(this.y)) < 0.03 }
+            update() {
+                if (this.atCenter()) {
+                    const cx = Math.round(this.x), cy = Math.round(this.y);
+                    // choose options
+                    const choices = [];
+                    for (const d of [DIR.UP, DIR.RIGHT, DIR.DOWN, DIR.LEFT]) {
+                        if (canMove(d, cx, cy) && opposite(d) !== this.dir) choices.push(d);
+                    }
+                    if (choices.length === 0) this.dir = opposite(this.dir);
+                    else {
+                        if (this.fright) { // random move when frightened
+                            this.dir = choices[Math.floor(Math.random() * choices.length)];
+                        } else {
+                            // simple chase: minimize distance to pac
+                            choices.sort((a, b) => {
+                                const ax = cx + dxy[a][0], ay = cy + dxy[a][1];
+                                const bx = cx + dxy[b][0], by = cy + dxy[b][1];
+                                const da = Math.hypot(ax - pac.x, ay - pac.y);
+                                const db = Math.hypot(bx - pac.x, by - pac.y);
+                                return da - db;
+                            });
+                            this.dir = choices[0];
+                        }
+                    }
+                }
+                this.x += dxy[this.dir][0] * this.speed; this.y += dxy[this.dir][1] * this.speed;
+                // tunnel
+                if (this.x < 0) this.x = COLS - 1; if (this.x > COLS - 1) this.x = 0;
+            }
+            draw() {
+                const cx = this.x * TILE + TILE / 2, cy = this.y * TILE + TILE / 2;
+                ctx.beginPath();
+                ctx.fillStyle = this.fright ? '#99f' : this.color;
+                // head
+                ctx.arc(cx, cy - 3, this.r, Math.PI, 0);
+                ctx.fillRect(cx - this.r, cy - 3, this.r * 2, this.r + 3);
+                ctx.fill();
+                // eyes
+                ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx - 4, cy - 2, 3, 0, Math.PI * 2); ctx.arc(cx + 4, cy - 2, 3, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(cx - 3, cy - 2, 1.5, 0, Math.PI * 2); ctx.arc(cx + 5, cy - 2, 1.5, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+
+        function inBounds(x, y) { return x >= 0 && x < COLS && y >= 0 && y < ROWS }
+
+        function canMove(dir, x, y) {
+            if (dir === DIR.NONE) return false;
+            const nx = x + dxy[dir][0]; const ny = y + dxy[dir][1];
+            if (!inBounds(nx, ny)) return false;
+            const v = grid[ny][nx];
+            return v !== 0 && v !== 4; // can't pass wall or gate
+        }
+
+        // Game state
+        let grid = []; let pellets = 0;
+        initGrid();
+        let pac = new Pac();
+        let ghosts = [new Ghost(13, 11, '#ff6666'), new Ghost(14, 11, '#ffb86b'), new Ghost(13, 13, '#66ccff'), new Ghost(14, 13, '#ff66ff')];
+
+        // Power mode
+        let powerTimer = 0;
+        function powerOn() { powerTimer = 600; ghosts.forEach(g => g.fright = true); }
+
+        // Collisions
+        function checkCollisions() {
+            ghosts.forEach(g => {
+                if (Math.hypot(pac.x - g.x, pac.y - g.y) < 0.6) {
+                    if (g.fright) { score += 200; g.reset(); }
+                    else { lives--; if (lives <= 0) { gameOver(); } else { resetPositions(); paused = true; } }
+                }
+            });
+        }
+
+        function resetPositions() { pac.reset(); ghosts.forEach(g => g.reset()); }
+
+        function gameOver() { paused = true; alert('Game Over! Score: ' + score); score = 0; lives = 3; level = 1; initGrid(); resetPositions(); }
+
+        function nextLevel() { level++; initGrid(); resetPositions(); }
+
+        // Render
+        function drawGrid() {
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const v = grid[r][c];
+                    const x = c * TILE, y = r * TILE;
+                    if (v === 0) {
+                        ctx.fillStyle = '#0011aa'; ctx.fillRect(x, y, TILE, TILE); // wall
+                        // small border for style
+                        ctx.strokeStyle = '#0033ff'; ctx.strokeRect(x + 1, y + 1, TILE - 2, TILE - 2);
+                    } else {
+                        ctx.fillStyle = '#000'; ctx.fillRect(x, y, TILE, TILE);
+                        if (v === 1) { ctx.beginPath(); ctx.fillStyle = '#ffd'; ctx.arc(x + TILE / 2, y + TILE / 2, 3, 0, Math.PI * 2); ctx.fill(); }
+                        if (v === 3) { ctx.beginPath(); ctx.fillStyle = '#fff'; ctx.arc(x + TILE / 2, y + TILE / 2, 6, 0, Math.PI * 2); ctx.fill(); }
+                    }
+                }
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+            pac.draw();
+            ghosts.forEach(g => g.draw());
+            scoreEl.textContent = score;
+            livesEl.textContent = lives;
+            levelEl.textContent = level;
+        }
+
+        // Update
+        function update() {
+            if (paused) return;
+            pac.update();
+            ghosts.forEach(g => g.update());
+            if (powerTimer > 0) { powerTimer--; if (powerTimer === 0) ghosts.forEach(g => g.fright = false); }
+            checkCollisions();
+            if (pellets === 0) nextLevel();
+        }
+
+        // Loop
+        function loop() { update(); draw(); requestAnimationFrame(loop); }
+        loop();
+
+        // Input
+        window.addEventListener('keydown', (e) => {
+            const k = e.key.toLowerCase();
+            if (k === 'arrowup' || k === 'w') pac.next = DIR.UP;
+            if (k === 'arrowdown' || k === 's') pac.next = DIR.DOWN;
+            if (k === 'arrowleft' || k === 'a') pac.next = DIR.LEFT;
+            if (k === 'arrowright' || k === 'd') pac.next = DIR.RIGHT;
+            if (k === 'p') paused = !paused;
+            if (k === 'r') restart();
+        });
+
+        startBtn.addEventListener('click', () => { paused = false; });
+        restartBtn.addEventListener('click', restart);
+
+        function restart() { score = 0; lives = 3; level = 1; initGrid(); resetPositions(); paused = false; }
+
+        // Init
+        initGrid();
+        resetPositions();
+
+    </script>
+</body>
+
+</html>

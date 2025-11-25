@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Flappy Chubb</title>
+    <style>
+      :root {
+        --bg: #0b1220;
+        --fg: #e6f1ff;
+        --accent: #ffb86b;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        font-family: Inter, system-ui, Segoe UI, Roboto, "Helvetica Neue", Arial;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(180deg, #071025 0%, #0b1220 100%);
+        color: var(--fg);
+      }
+      .game-wrap {
+        width: 100%;
+        max-width: 720px;
+        padding: 18px;
+        box-sizing: border-box;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 18px;
+      }
+      #canvas {
+        display: block;
+        width: 100%;
+        background: linear-gradient(180deg, #083 0%, #012 60%);
+        border-radius: 12px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+      }
+      .hud {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      button {
+        background: var(--accent);
+        border: none;
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .info {
+        font-size: 13px;
+        opacity: 0.9;
+      }
+      .center {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .small {
+        font-size: 12px;
+        color: #cbd5e1;
+      }
+      footer {
+        margin-top: 8px;
+        font-size: 12px;
+        color: #98a2b3;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="game-wrap">
+      <header>
+        <h1>HeberBird</h1>
+        <div class="hud">
+          <div class="info">Puntuación: <span id="score">0</span></div>
+          <button id="restart">Reiniciar</button>
+        </div>
+      </header>
+
+      <canvas id="canvas" width="720" height="480"></canvas>
+
+      <div class="center">
+        <div class="small">
+          Usa clic o barra espaciadora para saltar. Mantén el arimon de makana
+        </div>
+      </div>
+      <footer>
+        Desarrollador: solvingbacker
+      </footer>
+    </div>
+
+    <script>
+      /*
+  Simple Flappy-style game.
+  Controls: click or space to flap.
+  Single file: Canvas + JS.
+*/
+
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      const scoreEl = document.getElementById("score");
+      const restartBtn = document.getElementById("restart");
+
+      let W = canvas.width;
+      let H = canvas.height;
+
+      // Load bird image
+      const birdImg = new Image();
+      birdImg.src = "assets/img/prota.png";
+
+      // Game state
+      let gameState = "ready"; // 'ready' | 'running' | 'over'
+      let score = 0;
+
+      // Bird
+      const bird = {
+        x: 140,
+        y: H / 2,
+        radius: 16,
+        vel: 0,
+        gravity: 0.6,
+        jump: -10,
+        rotation: 0,
+      };
+
+      // Pipes
+      const pipeWidth = 64;
+      const gapSize = 140; // gap between top and bottom
+      let pipes = [];
+      let pipeTimer = 0;
+      const pipeInterval = 90; // frames
+      const speed = 2.6;
+
+      // Particles for hit effect
+      let particles = [];
+
+      function reset() {
+        score = 0;
+        scoreEl.textContent = score;
+        bird.y = H / 2;
+        bird.vel = 0;
+        bird.rotation = 0;
+        pipes = [];
+        pipeTimer = 0;
+        particles = [];
+        gameState = "ready";
+      }
+
+      function spawnPipe() {
+        const minTop = 40;
+        const maxTop = H - gapSize - 40;
+        const topHeight =
+          Math.floor(Math.random() * (maxTop - minTop + 1)) + minTop;
+        pipes.push({ x: W + 20, top: topHeight, passed: false });
+      }
+
+      function flap() {
+        if (gameState === "over") return;
+        bird.vel = bird.jump;
+        gameState = "running";
+      }
+
+      function update() {
+        // physics
+        bird.vel += bird.gravity;
+        bird.y += bird.vel;
+        bird.rotation =
+          (Math.max(Math.min(bird.vel * 4, 40), -30) * Math.PI) / 180;
+
+        if (gameState === "running") {
+          pipeTimer++;
+          if (pipeTimer >= pipeInterval) {
+            pipeTimer = 0;
+            spawnPipe();
+          }
+
+          // move pipes
+          for (let i = pipes.length - 1; i >= 0; i--) {
+            pipes[i].x -= speed;
+            // score
+            if (
+              !pipes[i].passed &&
+              pipes[i].x + pipeWidth < bird.x - bird.radius
+            ) {
+              pipes[i].passed = true;
+              score++;
+              scoreEl.textContent = score;
+            }
+            // remove off-screen
+            if (pipes[i].x + pipeWidth < -50) pipes.splice(i, 1);
+          }
+
+          // collision with ground/ceiling
+          if (bird.y + bird.radius > H || bird.y - bird.radius < 0) {
+            hit();
+          }
+
+          // collision with pipes
+          for (const p of pipes) {
+            const withinX =
+              bird.x + bird.radius > p.x &&
+              bird.x - bird.radius < p.x + pipeWidth;
+            if (withinX) {
+              // top pipe
+              if (
+                bird.y - bird.radius < p.top ||
+                bird.y + bird.radius > p.top + gapSize
+              ) {
+                hit();
+              }
+            }
+          }
+        }
+
+        // particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const part = particles[i];
+          part.x += part.vx;
+          part.y += part.vy;
+          part.vy += 0.2;
+          part.life -= 1;
+          if (part.life <= 0) particles.splice(i, 1);
+        }
+      }
+
+      function hit() {
+        if (gameState === "over") return;
+        gameState = "over";
+        // spawn particles
+        for (let i = 0; i < 30; i++) {
+          particles.push({
+            x: bird.x,
+            y: bird.y,
+            vx: (Math.random() - 0.5) * 6,
+            vy: (Math.random() - 1.5) * 6,
+            life: 30 + Math.random() * 30,
+          });
+        }
+      }
+
+      function draw() {
+        // background
+        ctx.clearRect(0, 0, W, H);
+        // sky gradient
+        const g = ctx.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, "#7ec0ff");
+        g.addColorStop(1, "#66a3ff");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+
+        // ground
+        ctx.fillStyle = "#0e2436";
+        ctx.fillRect(0, H - 40, W, 40);
+        ctx.fillStyle = "#0c1b2a";
+        ctx.fillRect(0, H - 40, W, 6);
+
+        // pipes
+        for (const p of pipes) {
+          ctx.fillStyle = "#116b4b";
+          // top
+          ctx.fillRect(p.x, 0, pipeWidth, p.top);
+          // bottom
+          ctx.fillRect(
+            p.x,
+            p.top + gapSize,
+            pipeWidth,
+            H - (p.top + gapSize) - 40
+          );
+          // pipe cap
+          ctx.fillStyle = "#0b5039";
+          ctx.fillRect(p.x - 2, p.top - 12, pipeWidth + 4, 12);
+          ctx.fillRect(p.x - 2, p.top + gapSize, pipeWidth + 4, 12);
+        }
+
+        // bird image
+        if (birdImg.complete) {
+          ctx.save();
+          ctx.translate(bird.x, bird.y);
+          ctx.rotate(bird.rotation);
+          ctx.drawImage(
+            birdImg,
+            -bird.radius,
+            -bird.radius,
+            bird.radius * 2,
+            bird.radius * 2
+          );
+          ctx.restore();
+        }
+
+        // particles
+        for (const p of particles) {
+          ctx.fillStyle = "rgba(255,100,80,0.9)";
+          ctx.fillRect(p.x, p.y, 3, 3);
+        }
+
+        // overlay text
+        if (gameState === "ready") {
+          ctx.fillStyle = "#fff";
+          ctx.font = "26px Inter, Arial";
+          ctx.textAlign = "center";
+          ctx.fillText(
+            "Click o presiona espacio para empezar",
+            W / 2,
+            H / 2 - 40
+          );
+        }
+        if (gameState === "over") {
+          ctx.fillStyle = "rgba(0,0,0,0.45)";
+          ctx.fillRect(W / 2 - 160, H / 2 - 80, 320, 140);
+          ctx.fillStyle = "#fff";
+          ctx.font = "30px Inter, Arial";
+          ctx.textAlign = "center";
+          ctx.fillText("Game Over", W / 2, H / 2 - 20);
+          ctx.font = "18px Inter, Arial";
+          ctx.fillText("Score: " + score, W / 2, H / 2 + 12);
+          ctx.fillText(
+            "Presiona Reiniciar para volver a intentar",
+            W / 2,
+            H / 2 + 44
+          );
+        }
+      }
+
+      function loop() {
+        update();
+        draw();
+        requestAnimationFrame(loop);
+      }
+
+      // input
+      window.addEventListener("keydown", (e) => {
+        if (e.code === "Space") {
+          e.preventDefault();
+          if (gameState === "over") return;
+          flap();
+        }
+        if (e.code === "KeyR" && gameState === "over") reset();
+      });
+      canvas.addEventListener("mousedown", () => flap());
+      restartBtn.addEventListener("click", () => reset());
+
+      // responsive canvas scaling
+      function resize() {
+        const ratio = Math.min(window.innerWidth - 40, 720);
+        canvas.style.width = ratio + "px";
+      }
+      window.addEventListener("resize", resize);
+      resize();
+
+      // start
+      reset();
+      loop();
+    </script>
+  </body>
+</html>
